@@ -9,6 +9,68 @@ import pdb
 from util import get_clones
 
 
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import math
+
+#计算注意力的函数，这里查询的形状为(batch_size, h_head, 查询的序列长度, d_k)，键值的形状为(batch_size, h_head, 键值的序列长度, d_k)
+def attention(query, key, value, mask=None, dropout=None):
+    "Compute 'Scaled Dot Product Attention'"
+    d_k = query.size(-1) #获取query的最后一个维度的大小，即d_k，就是每个头的维度，其实是嵌入维度d_model除以头的数量h_head
+    scores = torch.matmul(query, key.transpose(-2, -1)) / math.sqrt(d_k) #点积注意力，查询形状为(batch_size, h_head, 查询的序列长度, d_k)，键的形状变换后为(batch_size, h_head, d_k, 键值的序列长度)，点积后得到的scores形状为(batch_size, h_head, 查询的序列长度, 键值的序列长度)，然后除以d_k的平方根进行缩放
+    if mask is not None:
+        scores = scores.masked_fill(mask == 0, -1e9)
+    p_attn = F.softmax(scores, dim = -1) #进行softmax操作，dim=-1表示在最后一个维度上进行softmax
+    if dropout is not None:
+        p_attn = dropout(p_attn)
+    return torch.matmul(p_attn, value), p_attn #返回乘上值的结果（即点积注意力，形状为(batch_size, h_head, 查询的序列长度, d_k)）和原始未乘值的结果
+
+class MultiHeadAttention(nn.Module):
+    """
+    Multi head attention module
+
+    Args:
+        h_head: 头的数量
+        d_model: 数据的嵌入维度
+        dropout: dropout概率
+    """
+    def __init__(self, h_head, d_model, dropout=None): #初始化多头注意力模块，h_head是头的数量，d_model是数据的嵌入维度，dropout是dropout概率
+        super(MultiHeadAttention, self).__init__()
+        assert d_model % h_head == 0
+        self.h_head = h_head
+        self.d_k = d_model // h_head #数据的嵌入维度除以头的数量就是每个头的维度d_k
+
+        self.wq = nn.Linear(d_model, d_model)
+        self.wk = nn.Linear(d_model, d_model)
+        self.wv = nn.Linear(d_model, d_model)
+
+        self.fc = nn.Linear(d_model, d_model)
+
+        self.attn = None
+        # self.dropout = nn.Dropout(p=dropout)
+
+    def forward(self, query, key, value, mask=None):
+        if mask is not None:
+            # Same mask applied to all h_head heads.
+            mask = mask.unsqueeze(1)
+        batch_size = query.size(0) #获取批量大小?
+        
+        # print ('Before transform query: ' + str(query.size())) # (batch_size, seq_length, d_model)        
+
+        query = self.wq(query).view(batch_size, -1, self.h_head, self.d_k).transpose(1, 2) #query乘上wq矩阵，形状还是(batch_size, 查询的序列长度, d_model)  ，然后变形未(batch_size, 查询的序列长度, h_head, d_k)，这里嵌入维度d_model被分成了h_head个头，每个头的维度为d_k。交换维度1和2，得到的query形状为(batch_size, h_head, 查询的序列长度, d_k)
+        key   = self.wk(key).view(batch_size, -1, self.h_head, self.d_k).transpose(1, 2) #key乘上wk矩阵，形状还是(batch_size, 键值的序列长度, d_model)，然后变形未(batch_size, 键值的序列长度, h_head, d_k)，这里嵌入维度d_model被分成了h_head个头，每个头的维度为d_k。交换维度1和2，得到的key形状为(batch_size, h_head, 键值的序列长度, d_k)
+        value = self.wv(value).view(batch_size, -1, self.h_head, self.d_k).transpose(1, 2) #value乘上wv矩阵，形状还是(batch_size, 键值的序列长度, d_model)，然后变形未(batch_size, 键值的序列长度, h_head, d_k)，这里嵌入维度d_model被分成了h_head个头，每个头的维度为d_k。交换维度1和2，得到的value形状为(batch_size, h_head, 键值的序列长度, d_k)
+                
+        # print ('After transform query: ' + str(query.size())) # (batch_size, h_head, 查询的序列长度, d_k)
+        x, self.attn = attention(query, key, value, mask=mask) #计算注意力，得到的x形状为(batch_size, h_head, 查询的序列长度, d_k)，self.attn形状也是这样的
+        x = x.transpose(1, 2).contiguous().view(batch_size, -1, self.h_head * self.d_k) #先交换维度1和2，得到的x形状为(batch_size, 查询的序列长度, h_head, d_k)，然后变形为(batch_size, 查询的序列长度, h_head * d_k = d_model)，即将所有头的输出拼接在一起，形成一个新的查询序列
+        x = self.fc(x) #经过全连接层，形状不变
+        return x, self.attn
+
+
+
+
 #自定义激活函数Wavelet：w1 * sin(x) + w2 * cos(x)
 class WaveAct(nn.Module):
     def __init__(self):
@@ -39,7 +101,7 @@ class FeedForward(nn.Module):
 class EncoderLayer(nn.Module):
     def __init__(self, d_model, heads):
         super(EncoderLayer, self).__init__()
-        self.attn = nn.MultiheadAttention(embed_dim=d_model, num_heads=heads, batch_first=True) #多头注意力，设置嵌入维度为d_model，头数为heads，batch_first=True表示输入和输出tensor以(批量大小,序列长度,嵌入维度) 形式提供
+        self.attn = MultiHeadAttention(heads, d_model) #多头注意力，设置嵌入维度为d_model，头数为heads，batch_first=True表示输入和输出tensor以(批量大小,序列长度,嵌入维度) 形式提供
         self.ff = FeedForward(d_model) #MLP组件，输入和输出的形状均为d_model，隐藏层的形状为d_ff默认
         self.act1 = WaveAct() #激活函数
         self.act2 = WaveAct() #激活函数
@@ -56,7 +118,7 @@ class EncoderLayer(nn.Module):
 class DecoderLayer(nn.Module):
     def __init__(self, d_model, heads):
         super(DecoderLayer, self).__init__()
-        self.attn = nn.MultiheadAttention(embed_dim=d_model, num_heads=heads, batch_first=True) # 多头注意力，设置嵌入维度为d_model，头数为heads，batch_first=True表示输入和输出tensor以(批量大小,序列长度,嵌入维度) 形式提供
+        self.attn = MultiHeadAttention(heads, d_model) #多头注意力，设置嵌入维度为d_model，头数为heads，batch_first=True表示输入和输出tensor以(批量大小,序列长度,嵌入维度) 形式提供
         self.ff = FeedForward(d_model) #MLP组件，输入和输出的形状均为d_model，隐藏层的形状为d_ff默认
         self.act1 = WaveAct() #激活函数
         self.act2 = WaveAct() #激活函数

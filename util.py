@@ -34,10 +34,12 @@ def get_n_params(model):
         pp += nn
     return pp
 
-
+#将输入的二维空间-时间数据src转换为时间序列，为每个空间位置创建一个连续的时间步进序列。输入的数据src形状为(N, 2)，第一列x第二列t。最后返回的是一个伪时间序列数据，形状为(N, num_step, 2)，step则代表Δt，是伪时间序列的递增量。相当于把N个[x,t]转换为{[x,t],[x,t+Δt],[x,t+2Δt],...,[x,t+(num_step-1)Δt]}，即每个空间位置都有一个时间序列。
 def make_time_sequence(src, num_step=5, step=1e-4):
-    dim = num_step
+    dim = num_step 
+    #将src的形状从(N, 2)变为(N, L, 2)，首先使用np.expand_dims将src的第二个维度扩展为1，然后使用np.repeat将其沿第二个维度重复dim次，得到(N, L, 2)的形状
     src = np.repeat(np.expand_dims(src, axis=1), dim, axis=1)  # (N, L, 2)
+    #遍历每个时间步索引i，然后为t的部分增加一个递增量，相当于是i*Δt
     for i in range(num_step):
         src[:,i,-1] += step*i
     return src
