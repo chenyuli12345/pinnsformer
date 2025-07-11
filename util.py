@@ -4,6 +4,18 @@ import torch.nn as nn
 #这个模块提供了浅复制（copy.copy）和深复制（copy.deepcopy）两种复制方式。#浅复制只复制对象本身，而不复制它引用的其他对象；深复制则会复制对象以及它引用的所有对象，并且新对象与原对象完全独立
 import copy
 
+
+# #定义一个函数，用于生成一个二维网格数据。接受四个参数，分别代表x和y的范围，以及在这些范围内要生成点的数量。
+# def get_time_data(t_range, t_num):
+#     t = np.linspace(t_range[0], t_range[1], t_num) #在t_range[0]和t_range[1]之间生成t_num个点，构成x
+
+#     res = t.reshape(-1,1) #将data的形状变为(len(t)*len(x), 2)，即(N, 2)
+
+#     t_left = res[0,:].reshape(-1,1)  #取出data的第一行，即左边界，形状为(len(x), 2)
+
+#     return res, t_left #返回生成的数据，以及边界数据
+
+
 #定义一个函数，用于生成一个二维网格数据。接受四个参数，分别代表x和y的范围，以及在这些范围内要生成点的数量。
 def get_data(x_range, y_range, x_num, y_num):
     x = np.linspace(x_range[0], x_range[1], x_num) #在x_range[0]和x_range[1]之间生成x_num个点，构成x
@@ -35,6 +47,7 @@ def get_n_params(model):
     return pp
 
 #将输入的二维空间-时间数据src转换为时间序列，为每个空间位置创建一个连续的时间步进序列。输入的数据src形状为(N, 2)，第一列x第二列t。最后返回的是一个伪时间序列数据，形状为(N, num_step, 2)，step则代表Δt，是伪时间序列的递增量。相当于把N个[x,t]转换为{[x,t],[x,t+Δt],[x,t+2Δt],...,[x,t+(num_step-1)Δt]}，即每个空间位置都有一个时间序列。
+#最终将形状是(点的数量，2)的数据变为(点的数量，序列长度，2)
 def make_time_sequence(src, num_step=5, step=1e-4):
     dim = num_step 
     #将src的形状从(N, 2)变为(N, L, 2)，首先使用np.expand_dims将src的第二个维度扩展为1，然后使用np.repeat将其沿第二个维度重复dim次，得到(N, L, 2)的形状
