@@ -5,15 +5,15 @@ import torch.nn as nn
 import copy
 
 
-# #定义一个函数，用于生成一个二维网格数据。接受四个参数，分别代表x和y的范围，以及在这些范围内要生成点的数量。
-# def get_time_data(t_range, t_num):
-#     t = np.linspace(t_range[0], t_range[1], t_num) #在t_range[0]和t_range[1]之间生成t_num个点，构成x
+#定义一个函数，用于生成一个二维网格数据。接受四个参数，分别代表x和y的范围，以及在这些范围内要生成点的数量。
+def get_time_data(t_range, t_num):
+    t = np.linspace(t_range[0], t_range[1], t_num) #在t_range[0]和t_range[1]之间生成t_num个点，构成x
 
-#     res = t.reshape(-1,1) #将data的形状变为(len(t)*len(x), 2)，即(N, 2)
+    res = t.reshape(-1,1) #将data的形状变为(len(t)*len(x), 2)，即(N, 2)
 
-#     t_left = res[0,:].reshape(-1,1)  #取出data的第一行，即左边界，形状为(len(x), 2)
+    t_left = res[0,:].reshape(-1,1)  #取出data的第一行，即左边界，形状为(len(x), 2)
 
-#     return res, t_left #返回生成的数据，以及边界数据
+    return res, t_left #返回生成的数据，以及边界数据
 
 
 #定义一个函数，用于生成一个二维网格数据。接受四个参数，分别代表x和y的范围，以及在这些范围内要生成点的数量。

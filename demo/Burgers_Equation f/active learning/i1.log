@@ -1,0 +1,536 @@
+nohup: ignoring input
+[NbConvertApp] Converting notebook Adam+LBFGS+LHS(dongtaifuheAC)(5000)ceshimax.ipynb to notebook
+Traceback (most recent call last):
+  File "/home/lcy/anaconda3/envs/torchgpu/bin/jupyter-nbconvert", line 8, in <module>
+    sys.exit(main())
+  File "/home/lcy/anaconda3/envs/torchgpu/lib/python3.10/site-packages/jupyter_core/application.py", line 283, in launch_instance
+    super().launch_instance(argv=argv, **kwargs)
+  File "/home/lcy/anaconda3/envs/torchgpu/lib/python3.10/site-packages/traitlets/config/application.py", line 1075, in launch_instance
+    app.start()
+  File "/home/lcy/anaconda3/envs/torchgpu/lib/python3.10/site-packages/nbconvert/nbconvertapp.py", line 420, in start
+    self.convert_notebooks()
+  File "/home/lcy/anaconda3/envs/torchgpu/lib/python3.10/site-packages/nbconvert/nbconvertapp.py", line 597, in convert_notebooks
+    self.convert_single_notebook(notebook_filename)
+  File "/home/lcy/anaconda3/envs/torchgpu/lib/python3.10/site-packages/nbconvert/nbconvertapp.py", line 563, in convert_single_notebook
+    output, resources = self.export_single_notebook(
+  File "/home/lcy/anaconda3/envs/torchgpu/lib/python3.10/site-packages/nbconvert/nbconvertapp.py", line 487, in export_single_notebook
+    output, resources = self.exporter.from_filename(
+  File "/home/lcy/anaconda3/envs/torchgpu/lib/python3.10/site-packages/nbconvert/exporters/exporter.py", line 201, in from_filename
+    return self.from_file(f, resources=resources, **kw)
+  File "/home/lcy/anaconda3/envs/torchgpu/lib/python3.10/site-packages/nbconvert/exporters/exporter.py", line 220, in from_file
+    return self.from_notebook_node(
+  File "/home/lcy/anaconda3/envs/torchgpu/lib/python3.10/site-packages/nbconvert/exporters/notebook.py", line 36, in from_notebook_node
+    nb_copy, resources = super().from_notebook_node(nb, resources, **kw)
+  File "/home/lcy/anaconda3/envs/torchgpu/lib/python3.10/site-packages/nbconvert/exporters/exporter.py", line 154, in from_notebook_node
+    nb_copy, resources = self._preprocess(nb_copy, resources)
+  File "/home/lcy/anaconda3/envs/torchgpu/lib/python3.10/site-packages/nbconvert/exporters/exporter.py", line 353, in _preprocess
+    nbc, resc = preprocessor(nbc, resc)
+  File "/home/lcy/anaconda3/envs/torchgpu/lib/python3.10/site-packages/nbconvert/preprocessors/base.py", line 48, in __call__
+    return self.preprocess(nb, resources)
+  File "/home/lcy/anaconda3/envs/torchgpu/lib/python3.10/site-packages/nbconvert/preprocessors/execute.py", line 103, in preprocess
+    self.preprocess_cell(cell, resources, index)
+  File "/home/lcy/anaconda3/envs/torchgpu/lib/python3.10/site-packages/nbconvert/preprocessors/execute.py", line 124, in preprocess_cell
+    cell = self.execute_cell(cell, index, store_history=True)
+  File "/home/lcy/anaconda3/envs/torchgpu/lib/python3.10/site-packages/jupyter_core/utils/__init__.py", line 165, in wrapped
+    return loop.run_until_complete(inner)
+  File "/home/lcy/anaconda3/envs/torchgpu/lib/python3.10/asyncio/base_events.py", line 649, in run_until_complete
+    return future.result()
+  File "/home/lcy/anaconda3/envs/torchgpu/lib/python3.10/site-packages/nbclient/client.py", line 1062, in async_execute_cell
+    await self._check_raise_for_error(cell, cell_index, exec_reply)
+  File "/home/lcy/anaconda3/envs/torchgpu/lib/python3.10/site-packages/nbclient/client.py", line 918, in _check_raise_for_error
+    raise CellExecutionError.from_cell_and_msg(cell, exec_reply_content)
+nbclient.exceptions.CellExecutionError: An error occurred while executing the following cell:
+------------------
+#RAR-G方法，对1000个点，先选择10个点训练500次，然后每500次迭代重采样100个点，选出其中残差最大的10个点添加到训练点中；最后总共有1000个点，共训练10000次
+seeds = [0, 1, 12, 33, 123, 321, 1234, 4321, 12345, 54321] #生成10个随机种子
+# seeds = [0]
+
+nu = 0.01/np.pi
+#设置噪声水平为0
+noise = 0.0        
+
+N_u = 100
+N_f = 5000
+nIter = 50000 #设置迭代次数为10000
+nIterLBFGS = 500 #设置LBFGS迭代次数为500
+
+
+#定义一个列表layers，其中包含了神经网络的层数和每一层的神经元数量
+layers = [2, 20, 20, 20, 20, 20, 20, 20, 20, 2, 1]
+#读取名为burgers_shock的Matlab文件，文件中的数据存储在data变量中。这里的路径也要随着设备的情况修改 
+data = scipy.io.loadmat('../data/burgers_shock.mat')
+#从data字典中取出变量tt和x的值，并转换为一维数组（flatten方法），最后tongg[:,None]将一维数组转换为二维数组
+t = data['t'].flatten()[:,None]
+x = data['x'].flatten()[:,None]
+Exact = np.real(data['usol']).T #从data数据中取出usol的值，并取实部，最后转置，赋值给Exact
+#生成一个二位网络，X和T是输出的二维数组
+#这个点结果是X和T均为形状为[len(t),len(x)]的二维数组，X的每一行都是x，一共len(t)行，T的每一列都是t，一共len(x)列
+X, T = np.meshgrid(x,t)
+
+X_star = np.hstack((X.flatten()[:,None], T.flatten()[:,None]))  #按列堆叠数组，X_star是一个二维数组，其中第一列是X的展平，第二列是T的展平
+u_star = Exact.flatten()[:,None]    #对Exact_u使用flatten方法将其转换为一维数组，最后使用[:,None]将其转换为二维数组        
+
+# from sklearn.model_selection import train_test_split
+# # 将数据集分为测试集和验证集，验证集占比50%
+# X_test, X_val, u_test, u_val = train_test_split(X_star, u_star, test_size=0.5, random_state=42) #最后一个参数是随机种子，保证每次划分的结果都一样
+
+
+
+# Doman bounds，分别获得X_star的相应列上的最小值和最大值，赋值给lb和ub,也就是说lb是x和t的最小值，ub是x和t的最大值，即lb和ub分别为[-1,0]和[1,1]
+lb = X_star.min(0)
+ub = X_star.max(0)    
+
+
+#生成初值和边界值的训练基础数据
+xx1 = np.hstack((X[0:1,:].T, T[0:1,:].T)) #分别取X，T的第一行的转置(分别是x和全0列)，分别构成xx1的第一列和第二列
+uu1 = Exact[0:1,:].T #取Exact的第一行的转置，赋值给uu1
+xx2 = np.hstack((X[:,0:1], T[:,0:1])) #分别取X，T的第一列(分别是全-1列和t)，分别构成xx2的第一列和第二列
+uu2 = Exact[:,0:1] #取Exact的第一列，赋值给uu2
+xx3 = np.hstack((X[:,-1:], T[:,-1:])) #分别取X，T的最后一列(分别是全1列和t)，分别构成xx3的第一列和第二列
+uu3 = Exact[:,-1:] #取Exact的最后一列，赋值给uu3
+
+X_u_train_all = np.vstack([xx1, xx2, xx3]) #X_u_train=(xx1;xx2;xx3)
+
+u_train_all = np.vstack([uu1, uu2, uu3]) #u_train=(uu1;uu2;uu3)
+    
+
+#1.生成初值边界值训练数据，以及测试数据
+
+#从所有的初值边界值训练基础数据中选取N_u=100个点
+idx = np.linspace(0, X_u_train_all.shape[0] - 1, N_u, dtype=int) #生成一个等差数列，从0到X_u_train的行数，间隔为1，赋值给idx
+# idx = np.random.choice(X_u_train_all.shape[0], N_u, replace=False) #从0~数组X_u_train的行数 中随机选择N_u个数，replace=False表示不允许重复选择，最后将这N_u个数赋值给idx
+X_u_train = X_u_train_all[idx, :] #从X_u_train中选取idx对应的的N_u行，赋值给X_u_train
+u_train = u_train_all[idx,:] #从u_train中选取idx对应的的N_u行，赋值给u_train
+
+
+error_u = [] #创建一个空列表，用于存储误差值
+error_mae = [] #创建一个空列表，用于存储MAE值
+error_mse = [] #创建一个空列表，用于存储MSE值
+
+
+i = 0 #初始化i为0
+
+# 创建文件夹
+model_dir = 'Adam+LBFGS+LHS(fuheAC)(2500)'
+if not os.path.exists(model_dir):
+    os.makedirs(model_dir)
+
+
+for seed in seeds:
+    set_seed(seed) #设置随机数种子
+
+
+    #2.生成配位点并进行训练
+
+    num_iter = 100 #chaos迭代次数
+
+    #先训练500次
+    #采样配位点10个
+    N_f_1 = N_f//100 #N_f_1=50
+    X_f_train = caiyang(N_f_1, "LHS") #生成50个样本点，每个样本点都是一个二维点，即50*2的数据点
+
+    #创建PINN模型并输入各种参数     
+    model = PhysicsInformedNN(X_u_train, u_train, X_f_train, layers, lb, ub, nu, X_star, u_star)
+
+    #获取当前时间并赋值给start_time  
+    start_time = time.time()   
+    #开始训练模型            
+    model.train(nIter//100,0)
+
+    # 生成权重组合
+    weight_combinations = generate_weight_combinations(num_weights=10)
+    #得到已经训练过的点集的混沌度和残差
+    abs_residual_past, distances_past = calculate_residual_chaos(model, X_f_train, num_iter)
+    #计算过去的残差和混沌度的权重
+    best_weights_past = calculate_past(weight_combinations, abs_residual_past, distances_past)
+
+
+    #训练结束后，每500次迭代重采样一次100个点，并选出其中残差最大的10个点添加到训练点中；最后总共有1000个点，共训练50000次
+    for iter in range(nIter//100+1, nIter+1, nIter//100): #每500次迭代
+        N_f_new = N_f_1 * 10 #重新采样100个点
+        # 生成新的X_f_train数据
+        X_f_train_new = caiyang(N_f_new, "LHS") #生成500个样本点，每个样本点都是一个二维点，即500*2的数据点
+
+        abs_residual, distances = calculate_residual_chaos(model, X_f_train_new, num_iter)
+
+
+        xinxi = best_weights_past[1] * distances + best_weights_past[0] * abs_residual #将三个归一化后的数组相加，得到新的数组xinxi
+
+        # 找出绝对值最大的10个值的索引
+        topk_indices = np.argpartition(xinxi, -N_f_1)[-N_f_1:] #该函数会对数组进行排序，使得指定的k个最大值出现在数组的最后k给位置上，并获取最后1000个元素
+
+        # 使用这些索引来提取对应的数据
+        X_f_train_topk = X_f_train_new[topk_indices]
+
+        X_f_train = np.vstack((X_f_train, X_f_train_topk)) #与之前的训练数据合并
+
+        # 更新模型中的X_f_train数据
+        model.x_f = torch.tensor(X_f_train[:, 0:1], requires_grad=True).float().to(device)
+        model.t_f = torch.tensor(X_f_train[:, 1:2], requires_grad=True).float().to(device)
+
+        # 在更新数据后的模型上进行训练500次
+        model.train(nIter//100,0)
+
+
+        #更新过去的残差和混沌度的权重
+        #得到已经训练过的点集的混沌度和残差
+        abs_residual_past, distances_past = calculate_residual_chaos(model, X_f_train, num_iter)
+        #计算过去的残差和混沌度的权重
+        best_weights_past = calculate_past(weight_combinations, abs_residual_past, distances_past)
+
+
+
+
+    model.train(0,nIterLBFGS) #使用LBFGS训练500次
+    #所有训练结束后获取当前时间并减去start_time，得到训练时间并赋值给elapsed
+    elapsed = time.time() - start_time
+    #打印训练所花时间                
+    print('Training time: %.4f' % (elapsed))
+
+    # 训练结束后，再次使用模型进行预测，并计算误差
+    u_pred, f_pred = model.predict(X_star)
+    error_u.append(np.linalg.norm(u_star-u_pred,2)/np.linalg.norm(u_star,2)) #计算误差，然后将误差添加到error_u列表中
+    # 计算 MAE 和 MSE
+    mae = np.mean(np.abs(u_star - u_pred))
+    mse = np.mean((u_star - u_pred) ** 2)
+    # 记录 MAE 和 MSE
+    error_mae.append(mae)
+    error_mse.append(mse)
+
+    i+=1 #i加1
+    print(f'当前为第{i}次循环，种子为{seed}')
+    print('Error u : %e' % (np.linalg.norm(u_star-u_pred,2)/np.linalg.norm(u_star,2))) #打印误差  
+    print('MAE: %e' % mae) #打印MAE
+    print('MSE: %e' % mse) #打印MSE
+    
+    # 保存模型到文件夹
+    model_path = os.path.join(model_dir, f'model_{i}_seed_{seed}.pkl')
+    with open(model_path, 'wb') as f:
+        pickle.dump(model, f)
+
+------------------
+
+----- stderr -----
+
+Adam:   0%|          | 0/500 [00:00<?, ?it/s]
+----- stderr -----
+
+Adam:   0%|          | 2/500 [00:00<00:25, 19.22it/s]
+----- stderr -----
+
+Adam:   6%|▋         | 32/500 [00:00<00:02, 180.43it/s]
+----- stderr -----
+
+Adam:  13%|█▎        | 63/500 [00:00<00:01, 237.27it/s]
+----- stderr -----
+
+Adam:  19%|█▊        | 93/500 [00:00<00:01, 258.80it/s]
+----- stderr -----
+
+Adam:  25%|██▍       | 123/500 [00:00<00:01, 273.05it/s]
+----- stderr -----
+
+Adam:  31%|███       | 153/500 [00:00<00:01, 281.02it/s]
+----- stderr -----
+
+Adam:  37%|███▋      | 183/500 [00:00<00:01, 286.45it/s]
+----- stderr -----
+
+Adam:  43%|████▎     | 213/500 [00:00<00:00, 289.91it/s]
+----- stderr -----
+
+Adam:  49%|████▊     | 243/500 [00:00<00:00, 286.74it/s]
+----- stderr -----
+
+Adam:  55%|█████▍    | 273/500 [00:01<00:00, 290.67it/s]
+----- stderr -----
+
+Adam:  61%|██████    | 304/500 [00:01<00:00, 295.58it/s]
+----- stderr -----
+
+Adam:  67%|██████▋   | 334/500 [00:01<00:00, 292.61it/s]
+----- stderr -----
+
+Adam:  73%|███████▎  | 364/500 [00:01<00:00, 290.05it/s]
+----- stderr -----
+
+Adam:  79%|███████▉  | 395/500 [00:01<00:00, 295.71it/s]
+----- stderr -----
+
+Adam:  85%|████████▌ | 425/500 [00:01<00:00, 287.25it/s]
+----- stderr -----
+
+Adam:  91%|█████████ | 456/500 [00:01<00:00, 292.35it/s]
+----- stderr -----
+
+Adam:  97%|█████████▋| 486/500 [00:01<00:00, 279.24it/s]
+----- stderr -----
+
+Adam: 100%|██████████| 500/500 [00:01<00:00, 275.09it/s]
+----- stderr -----
+
+----- stderr -----
+
+LBFGS: 0it [00:00, ?it/s]
+----- stderr -----
+
+LBFGS: 0it [00:00, ?it/s]
+----- stderr -----
+
+------------------
+
+[0;31m---------------------------------------------------------------------------[0m
+[0;31mAttributeError[0m                            Traceback (most recent call last)
+Cell [0;32mIn[12], line 102[0m
+[1;32m    100[0m abs_residual_past, distances_past [38;5;241m=[39m calculate_residual_chaos(model, X_f_train, num_iter)
+[1;32m    101[0m [38;5;66;03m#计算过去的残差和混沌度的权重[39;00m
+[0;32m--> 102[0m best_weights_past [38;5;241m=[39m [43mcalculate_past[49m[43m([49m[43mweight_combinations[49m[43m,[49m[43m [49m[43mabs_residual_past[49m[43m,[49m[43m [49m[43mdistances_past[49m[43m)[49m
+[1;32m    105[0m [38;5;66;03m#训练结束后，每500次迭代重采样一次100个点，并选出其中残差最大的10个点添加到训练点中；最后总共有1000个点，共训练50000次[39;00m
+[1;32m    106[0m [38;5;28;01mfor[39;00m [38;5;28miter[39m [38;5;129;01min[39;00m [38;5;28mrange[39m(nIter[38;5;241m/[39m[38;5;241m/[39m[38;5;241m100[39m[38;5;241m+[39m[38;5;241m1[39m, nIter[38;5;241m+[39m[38;5;241m1[39m, nIter[38;5;241m/[39m[38;5;241m/[39m[38;5;241m100[39m): [38;5;66;03m#每500次迭代[39;00m
+
+Cell [0;32mIn[11], line 13[0m, in [0;36mcalculate_past[0;34m(weight_combinations, abs_residual, distances)[0m
+[1;32m      8[0m     validation_errors[38;5;241m.[39mappend(val_error[38;5;241m.[39msum())
+[1;32m      9[0m     [38;5;66;03m# print(f"Weight (Residual: {w_residual:.2f}, Chaos: {w_chaos:.2f}) - Validation Error: {val_error:.4f}")[39;00m
+[1;32m     10[0m [38;5;66;03m# print(validation_errors)[39;00m
+[1;32m     11[0m [38;5;66;03m# print(len(validation_errors))[39;00m
+[1;32m     12[0m [38;5;66;03m# 选择验证误差最小的权重组合[39;00m
+[0;32m---> 13[0m best_index [38;5;241m=[39m [43mnp[49m[38;5;241;43m.[39;49m[43margax[49m(validation_errors)
+[1;32m     14[0m [38;5;28mprint[39m(best_index)
+[1;32m     15[0m best_weights [38;5;241m=[39m weight_combinations[best_index]
+
+File [0;32m~/anaconda3/envs/torchgpu/lib/python3.10/site-packages/numpy/__init__.py:333[0m, in [0;36m__getattr__[0;34m(attr)[0m
+[1;32m    330[0m     [38;5;124m"[39m[38;5;124mRemoved in NumPy 1.25.0[39m[38;5;124m"[39m
+[1;32m    331[0m     [38;5;28;01mraise[39;00m [38;5;167;01mRuntimeError[39;00m([38;5;124m"[39m[38;5;124mTester was removed in NumPy 1.25.[39m[38;5;124m"[39m)
+[0;32m--> 333[0m [38;5;28;01mraise[39;00m [38;5;167;01mAttributeError[39;00m([38;5;124m"[39m[38;5;124mmodule [39m[38;5;132;01m{!r}[39;00m[38;5;124m has no attribute [39m[38;5;124m"[39m
+[1;32m    334[0m                      [38;5;124m"[39m[38;5;132;01m{!r}[39;00m[38;5;124m"[39m[38;5;241m.[39mformat([38;5;18m__name__[39m, attr))
+
+[0;31mAttributeError[0m: module 'numpy' has no attribute 'argax'
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
