@@ -1507,7 +1507,7 @@ import random
 import copy
 
 
-class Model(nn.Module):
+class ModelKAN(nn.Module):
     '''
     KAN class
 
@@ -1618,7 +1618,7 @@ class Model(nn.Module):
         >>> (model.act_fun[0].in_dim, model.act_fun[0].out_dim), (model.act_fun[1].in_dim, model.act_fun[1].out_dim)
         ((2, 5), (5, 1))
         '''
-        super(Model, self).__init__()
+        super(ModelKAN, self).__init__()
 
         torch.manual_seed(seed)
         np.random.seed(seed)
