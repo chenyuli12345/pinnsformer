@@ -1,0 +1,18 @@
+------------------------------ Experiment: DNN Failure + Residual (LBFGS) + Pretrain ------------------------------
+[1.2145930568373933]
+Error u of DNN Failure + Residual (LBFGS) + Pretrain: 1.214593e+00
+[0.7038954047045005]
+MAE of DNN Failure + Residual (LBFGS) + Pretrain: 7.038954e-01
+[0.7360373881644278]
+MSE of DNN Failure + Residual (LBFGS) + Pretrain: 7.360374e-01
+
+
+------------------------------ Experiment: DNN, Failure + Residual, (LBFGS),  Pretrain ------------------------------
+[1.2145930568373933]
+Error u of DNN, Failure + Residual, (LBFGS),  Pretrain: 1.214593e+00
+[0.7038954047045005]
+MAE of DNN, Failure + Residual, (LBFGS),  Pretrain: 7.038954e-01
+[0.7360373881644278]
+MSE of DNN, Failure + Residual, (LBFGS),  Pretrain: 7.360374e-01
+
+
