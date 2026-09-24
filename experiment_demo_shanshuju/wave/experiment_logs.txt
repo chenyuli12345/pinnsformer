@@ -1,0 +1,18 @@
+------------------------------ Experiment: DNN, Standard, (LBFGS),  Pretrain ------------------------------
+[0.0024287731205117533]
+Error u of DNN, Standard, (LBFGS),  Pretrain: 2.428773e-03
+[0.000901048909476983]
+MAE of DNN, Standard, (LBFGS),  Pretrain: 9.010489e-04
+[2.22632194687054e-06]
+MSE of DNN, Standard, (LBFGS),  Pretrain: 2.226322e-06
+
+
+------------------------------ Experiment: Transformer, Failure, (LBFGS),  Pretrain ------------------------------
+[0.5575567325248231]
+Error u of Transformer, Failure, (LBFGS),  Pretrain: 5.575567e-01
+[0.12417565505634613]
+MAE of Transformer, Failure, (LBFGS),  Pretrain: 1.241757e-01
+[0.11732544239464966]
+MSE of Transformer, Failure, (LBFGS),  Pretrain: 1.173254e-01
+
+
